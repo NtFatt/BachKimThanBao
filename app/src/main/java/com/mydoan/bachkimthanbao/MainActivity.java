@@ -1,327 +1,365 @@
 package com.mydoan.bachkimthanbao;
 
-import android.os.Bundle;
-import android.util.Log;
+import android.Manifest;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.drawable.BitmapDrawable;
+import android.net.Uri;
+import android.os.Bundle;
+import android.provider.MediaStore;
+import android.util.Log;
+import android.view.MotionEvent;
+import android.view.View;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.camera.core.ImageCaptureException;
-import androidx.camera.view.PreviewView;
+import java.nio.ByteBuffer;
+import java.io.IOException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageCapture;
+import androidx.camera.core.ImageCaptureException;
+import androidx.camera.core.ImageAnalysis;
+import androidx.camera.core.ImageProxy;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import com.google.common.util.concurrent.ListenableFuture;
-import android.Manifest;
-import android.content.pm.PackageManager;
-import androidx.camera.core.ImageProxy;
-import androidx.annotation.NonNull;
-import android.content.Intent;
-import android.net.Uri;
-import android.provider.MediaStore;
-import android.os.Build;
+import com.google.android.material.color.utilities.Hct;
 
-import java.nio.ByteBuffer;
-import java.io.IOException;
+import com.google.common.util.concurrent.ListenableFuture;
+
+import android.util.Size;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final int CAMERA_PERMISSION_REQUEST_CODE = 101;
-    private static final int PICK_IMAGE_REQUEST = 1;
+    private static final int REQUEST_CAMERA_PERMISSION = 100;
+    private static final int REQUEST_GALLERY_IMAGE = 999;
+
     private PreviewView previewView;
+    private ImageView ivChosenImage;
+    private FrameLayout cameraFrame;
+    private View centerOverlay; // Overlay (crosshair) ở giữa
+    private TextView tvColorInfo;
+    private Button btnCapture, btnLibrary;
+    private WebView webView; // WebView dùng để gọi chroma.js & ntc.js
+
     private ImageCapture imageCapture;
-    private ImageView capturedImageView; // ImageView để hiển thị ảnh chụp
+    private ProcessCameraProvider cameraProvider;
+
+    // Flag xác định chế độ hiển thị: camera hay ảnh từ thư viện
+    private boolean isLibraryMode = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        previewView = findViewById(R.id.camera_preview);
-        Button takePictureButton = findViewById(R.id.btn_capture); // Nút chụp ảnh
-        Button chooseImageButton = findViewById(R.id.btn_library);  // Nút chọn ảnh từ thư viện
-        capturedImageView = findViewById(R.id.iv_captured_image); // ImageView hiển thị ảnh
+        // Ánh xạ UI từ layout
+        previewView = findViewById(R.id.preview_view);
+        ivChosenImage = findViewById(R.id.iv_chosen_image);
+        cameraFrame = findViewById(R.id.camera_frame);
+        centerOverlay = findViewById(R.id.center_overlay);
+        tvColorInfo = findViewById(R.id.tv_color_info);
+        btnCapture = findViewById(R.id.btn_capture);
+        btnLibrary = findViewById(R.id.btn_library);
+        webView = findViewById(R.id.chroma_webview);
 
-        // Xử lý sự kiện chọn ảnh từ thư viện
-        chooseImageButton.setOnClickListener(view -> openGallery());
+        // Cấu hình WebView cho JavaScript
+        WebSettings webSettings = webView.getSettings();
+        webSettings.setJavaScriptEnabled(true);
+        // Load file index.html chứa chroma.js & ntc.js từ assets
+        webView.loadUrl("file:///android_asset/index.html");
 
-        // Kiểm tra và yêu cầu quyền truy cập camera
+        // Kiểm tra quyền Camera
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 == PackageManager.PERMISSION_GRANTED) {
-            startCamera();
+            startCameraAndAnalysis();
         } else {
             ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST_CODE);
+                    new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
         }
 
-        // Xử lý sự kiện nhấn nút chụp ảnh
-        takePictureButton.setOnClickListener(view -> takePicture());
-    }
-
-    // Mở thư viện ảnh để người dùng chọn
-    private void openGallery() {
-        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        intent.setType("image/*");  // Chỉ chọn ảnh
-        startActivityForResult(intent, PICK_IMAGE_REQUEST);
-    }
-
-    // Xử lý kết quả từ việc chọn ảnh từ thư viện
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == PICK_IMAGE_REQUEST && resultCode == RESULT_OK && data != null) {
-            Uri selectedImageUri = data.getData();  // Lấy URI của ảnh đã chọn
-            if (selectedImageUri != null) {
-                try {
-                    // Lấy ảnh từ URI
-                    Bitmap selectedImage = MediaStore.Images.Media.getBitmap(this.getContentResolver(), selectedImageUri);
-                    capturedImageView.setImageBitmap(selectedImage);  // Hiển thị ảnh lên ImageView
-                    // Phân tích màu sắc từ ảnh đã chọn
-                    analyzeImageColor(selectedImage);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+        // Button chụp ảnh (capture) khi đang ở chế độ camera
+        btnCapture.setOnClickListener(v -> {
+            if (!isLibraryMode) {
+                takePhoto();
+            } else {
+                Toast.makeText(this, "Chế độ thư viện: Hãy chạm vào ảnh để lấy màu", Toast.LENGTH_SHORT).show();
             }
-        }
+        });
+
+        // Button chọn ảnh từ thư viện
+        btnLibrary.setOnClickListener(v -> pickImageFromGallery());
+
+        // Thiết lập sự kiện chạm vào ảnh từ thư viện để lấy màu tại điểm chạm
+        initTouchListenerForImage();
     }
 
-    // Khởi động camera và cấu hình CameraX
-    private void startCamera() {
+    // Khởi tạo CameraX với Preview, ImageCapture, và ImageAnalysis
+    private void startCameraAndAnalysis() {
         ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(this);
-
         cameraProviderFuture.addListener(() -> {
             try {
-                // Lấy ProcessCameraProvider
-                ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
-
-                // Cấu hình Preview để hiển thị hình ảnh từ camera
-                Preview preview = new Preview.Builder().build();
-
-                // Cấu hình ImageCapture để chụp ảnh
-                imageCapture = new ImageCapture.Builder().build();
-
-                // Cấu hình CameraSelector để chọn camera trước (front camera)
-                CameraSelector cameraSelector = new CameraSelector.Builder()
-                        .requireLensFacing(CameraSelector.LENS_FACING_FRONT) // Chọn camera trước
-                        .build();
-
-                // Kiểm tra xem camera trước có sẵn không
-                if (!cameraProvider.hasCamera(cameraSelector)) {
-                    Log.e("CameraX", "Front camera not available. Switching to back camera.");
-                    // Nếu camera trước không có sẵn, sử dụng camera sau
-                    cameraSelector = new CameraSelector.Builder()
-                            .requireLensFacing(CameraSelector.LENS_FACING_BACK) // Camera sau
-                            .build();
-                }
-
-                // Liên kết camera vào lifecycle của Activity và set Preview vào PreviewView
-                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture);
-
-                // Liên kết Preview với SurfaceProvider của PreviewView
-                preview.setSurfaceProvider(previewView.getSurfaceProvider());
+                cameraProvider = cameraProviderFuture.get();
+                bindCameraUseCases(cameraProvider);
             } catch (Exception e) {
-                Log.e("CameraX", "Camera setup failed: " + e.getMessage());
+                Log.e("CameraX", "Lỗi khởi tạo camera: " + e.getMessage());
                 e.printStackTrace();
             }
         }, ContextCompat.getMainExecutor(this));
     }
 
-    // Chụp ảnh khi người dùng nhấn nút
-    private void takePicture() {
-        if (imageCapture == null) {
-            return;
-        }
+    private void bindCameraUseCases(ProcessCameraProvider cameraProvider) {
+        CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
+        Preview preview = new Preview.Builder().build();
+        imageCapture = new ImageCapture.Builder().build();
+        ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
+                .setTargetResolution(new Size(640, 480))
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build();
 
-        // Chụp ảnh
-        imageCapture.takePicture(ContextCompat.getMainExecutor(this), new ImageCapture.OnImageCapturedCallback() {
-
-            @Override
-            public void onCaptureSuccess(@NonNull ImageProxy image) {
-                super.onCaptureSuccess(image);
-                // Chuyển đổi ImageProxy thành Bitmap
-                Bitmap bitmap = imageProxyToBitmap(image);
-                // Hiển thị ảnh trong ImageView
-                capturedImageView.setImageBitmap(bitmap);
-                // Phân tích màu sắc từ ảnh chụp được
-                analyzeImageColor(bitmap);
-                image.close();  // Đảm bảo đóng ImageProxy sau khi xử lý
+        imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(this), imageProxy -> {
+            Bitmap bitmap = imageProxyToBitmap(imageProxy);
+            if (bitmap != null) {
+                // Lấy pixel tại tâm của bitmap
+                int centerX = bitmap.getWidth() / 2;
+                int centerY = bitmap.getHeight() / 2;
+                int centerPixel = bitmap.getPixel(centerX, centerY);
+                String hex = String.format("#%02X%02X%02X", Color.red(centerPixel),
+                        Color.green(centerPixel), Color.blue(centerPixel));
+                runOnUiThread(() -> updateColorInfoWithChroma(hex));
             }
+            imageProxy.close();
+        });
 
-            @Override
-            public void onError(@NonNull ImageCaptureException exc) {
-                super.onError(exc);
-                // Hiển thị Toast khi có lỗi
-                Toast.makeText(MainActivity.this, "Error capturing image: " + exc.getMessage(), Toast.LENGTH_SHORT).show();
-                Log.e("CameraX", "Error capturing image: " + exc.getMessage());
+        cameraProvider.unbindAll();
+        preview.setSurfaceProvider(previewView.getSurfaceProvider());
+        cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture, imageAnalysis);
+
+        // Khi dùng camera, hiển thị preview, ẩn ảnh thư viện
+        previewView.setVisibility(View.VISIBLE);
+        ivChosenImage.setVisibility(View.GONE);
+        isLibraryMode = false;
+    }
+
+    // Phương thức chụp ảnh (capture) từ CameraX
+    private void takePhoto() {
+        if (imageCapture == null) return;
+        imageCapture.takePicture(ContextCompat.getMainExecutor(this),
+                new ImageCapture.OnImageCapturedCallback() {
+                    @Override
+                    public void onCaptureSuccess(@NonNull ImageProxy imageProxy) {
+                        Bitmap bitmap = imageProxyToBitmap(imageProxy);
+                        imageProxy.close();
+                        if (bitmap != null) {
+                            ivChosenImage.setImageBitmap(bitmap);
+                            ivChosenImage.setVisibility(View.VISIBLE);
+                            previewView.setVisibility(View.GONE);
+                            isLibraryMode = true;
+                            analyzeBitmap(bitmap);
+                        }
+                    }
+
+                    @Override
+                    public void onError(@NonNull ImageCaptureException exception) {
+                        Toast.makeText(MainActivity.this, "Lỗi chụp ảnh: " + exception.getMessage(), Toast.LENGTH_SHORT).show();
+                        Log.e("CameraX", "Error: " + exception.getMessage());
+                    }
+                });
+    }
+
+    // Chuyển ImageProxy thành Bitmap
+    private Bitmap imageProxyToBitmap(ImageProxy imageProxy) {
+        try {
+            ByteBuffer buffer = imageProxy.getPlanes()[0].getBuffer();
+            byte[] bytes = new byte[buffer.remaining()];
+            buffer.get(bytes);
+            return BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    // Mở gallery để chọn ảnh
+    private void pickImageFromGallery() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        intent.setType("image/*");
+        startActivityForResult(intent, REQUEST_GALLERY_IMAGE);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_GALLERY_IMAGE && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            try {
+                Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
+                isLibraryMode = true;
+                ivChosenImage.setImageBitmap(bitmap);
+                ivChosenImage.setVisibility(View.VISIBLE);
+                previewView.setVisibility(View.GONE);
+                analyzeBitmap(bitmap);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    // Sự kiện chạm vào ảnh từ thư viện để lấy màu tại điểm chạm
+    private void initTouchListenerForImage() {
+        ivChosenImage.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                Bitmap bitmap = ((BitmapDrawable) ivChosenImage.getDrawable()).getBitmap();
+                if (bitmap != null) {
+                    int pixelColor = getPixelColorFromImageView(bitmap, ivChosenImage, event.getX(), event.getY());
+                    String hex = String.format("#%02X%02X%02X",
+                            Color.red(pixelColor), Color.green(pixelColor), Color.blue(pixelColor));
+                    updateColorInfoWithChroma(hex);
+                }
+            }
+            return true;
+        });
+    }
+
+    // Chuyển đổi tọa độ từ ImageView sang tọa độ thực của Bitmap
+    private int getPixelColorFromImageView(Bitmap bitmap, ImageView imageView, float viewX, float viewY) {
+        int imageViewWidth = imageView.getWidth();
+        int imageViewHeight = imageView.getHeight();
+        int bitmapWidth = bitmap.getWidth();
+        int bitmapHeight = bitmap.getHeight();
+
+        float scaleX = (float) bitmapWidth / imageViewWidth;
+        float scaleY = (float) bitmapHeight / imageViewHeight;
+
+        int xInBitmap = (int)(viewX * scaleX);
+        int yInBitmap = (int)(viewY * scaleY);
+
+        xInBitmap = Math.max(0, Math.min(xInBitmap, bitmapWidth - 1));
+        yInBitmap = Math.max(0, Math.min(yInBitmap, bitmapHeight - 1));
+
+        return bitmap.getPixel(xInBitmap, yInBitmap);
+    }
+
+    // Phân tích Bitmap (ảnh từ thư viện hoặc ảnh chụp) và cập nhật màu trung bình
+    private void analyzeBitmap(Bitmap bitmap) {
+        if (bitmap == null) return;
+        int colorAvg = getAverageColor(bitmap);
+        String hex = String.format("#%02X%02X%02X",
+                Color.red(colorAvg), Color.green(colorAvg), Color.blue(colorAvg));
+        updateColorInfoWithChroma(hex);
+    }
+
+    // Tính màu trung bình của Bitmap (lấy mẫu theo bước 10 pixel)
+    private int getAverageColor(Bitmap bitmap) {
+        long sumR = 0, sumG = 0, sumB = 0;
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        int count = 0;
+        int step = 10;
+        for (int y = 0; y < height; y += step) {
+            for (int x = 0; x < width; x += step) {
+                int pixel = bitmap.getPixel(x, y);
+                sumR += Color.red(pixel);
+                sumG += Color.green(pixel);
+                sumB += Color.blue(pixel);
+                count++;
+            }
+        }
+        int avgR = (int)(sumR / count);
+        int avgG = (int)(sumG / count);
+        int avgB = (int)(sumB / count);
+        return Color.rgb(avgR, avgG, avgB);
+    }
+
+    // Cập nhật thông tin màu sử dụng hàm JavaScript (chroma.js & ntc.js)
+    private void updateColorInfoWithChroma(String hexColor) {
+        String script = "processColor('" + hexColor + "');";
+        webView.evaluateJavascript(script, value -> {
+            if (value != null && value.length() > 2) {
+                try {
+                    String json = value;
+                    if (json.startsWith("\"") && json.endsWith("\"")) {
+                        json = json.substring(1, json.length() - 1);
+                    }
+                    Log.d("UpdateColorInfo", "JSON trả về: " + json);
+
+                    String colorName = extractJsonValue(json, "name");
+                    String darkColor = extractJsonValue(json, "darkColor");
+                    if (darkColor.equals("Không xác định")) {
+                        darkColor = hexColor;
+                    }
+
+                    String info = "Mã màu: " + hexColor + "\nTên màu: " + colorName;
+                    tvColorInfo.setText(info);
+
+                    try {
+                        int parsedColor = Color.parseColor(darkColor);
+                        tvColorInfo.setTextColor(parsedColor);
+                        // Đặt nền bán trong suốt dựa trên darkColor
+                        tvColorInfo.setBackgroundColor(adjustAlpha(parsedColor, 0.2f));
+                    } catch (Exception e) {
+                        Log.e("UpdateColorInfo", "Lỗi parse darkColor: " + e.getMessage());
+                    }
+                } catch (Exception e) {
+                    Log.e("UpdateColorInfo", "Lỗi xử lý JSON: " + e.getMessage());
+                    tvColorInfo.setText("Mã màu: " + hexColor + "\nTên màu: Không xác định");
+                }
+            } else {
+                tvColorInfo.setText("Mã màu: " + hexColor + "\nTên màu: Không xác định");
             }
         });
     }
 
-    // Chuyển đổi ImageProxy thành Bitmap
-    private Bitmap imageProxyToBitmap(ImageProxy imageProxy) {
-        ByteBuffer buffer = imageProxy.getPlanes()[0].getBuffer();
-        byte[] bytes = new byte[buffer.remaining()];
-        buffer.get(bytes);
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
-    }
-
-    // Phân tích màu sắc từ Bitmap
-    private void analyzeImageColor(Bitmap bitmap) {
-        int width = bitmap.getWidth();
-        int height = bitmap.getHeight();
-
-        // Biến để tính tổng giá trị RGB và HSV
-        int totalRed = 0;
-        int totalGreen = 0;
-        int totalBlue = 0;
-        int pixelCount = 0;
-
-        // Biến để tính tổng giá trị HSV
-        float totalHue = 0;
-        float totalSaturation = 0;
-        float totalValue = 0;
-
-        boolean isBlack = true;
-        boolean isWhite = true;
-
-        // Lấy pixel từ toàn bộ ảnh để nhận diện chính xác
-        for (int x = 0; x < width; x++) {
-            for (int y = 0; y < height; y++) {
-                int pixelColor = bitmap.getPixel(x, y);
-
-                // Chuyển đổi từ RGB sang HSV
-                float[] hsv = new float[3];
-                Color.colorToHSV(pixelColor, hsv);
-
-                // Kiểm tra điều kiện cho màu đen và trắng
-                if (hsv[1] > 0.1 || hsv[2] > 0.1) {
-                    isBlack = false;
-                }
-
-                if (hsv[1] > 0.1 || hsv[2] < 0.9) {
-                    isWhite = false;
-                }
-
-                // Cộng dồn giá trị RGB và HSV
-                totalRed += Color.red(pixelColor);
-                totalGreen += Color.green(pixelColor);
-                totalBlue += Color.blue(pixelColor);
-
-                totalHue += hsv[0];
-                totalSaturation += hsv[1];
-                totalValue += hsv[2];
-
-                pixelCount++;
-            }
-        }
-
-        // Kiểm tra nếu ảnh gần như là màu trắng hoặc đen
-        if (isBlack && isWhite) {
-            TextView colorTextView = findViewById(R.id.color_text);
-            colorTextView.setText("Detected Color: White");
-            Toast.makeText(this, "Detected Color: White", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // Tính trung bình giá trị RGB và HSV
-        int averageRed = totalRed / pixelCount;
-        int averageGreen = totalGreen / pixelCount;
-        int averageBlue = totalBlue / pixelCount;
-
-        float averageHue = totalHue / pixelCount;
-        float averageSaturation = totalSaturation / pixelCount;
-        float averageValue = totalValue / pixelCount;
-
-        // Nhận diện màu sắc từ giá trị Hue trung bình
-        String color = detectColorHSV(averageHue, averageSaturation, averageValue, averageRed, averageGreen, averageBlue);
-
-        // Hiển thị kết quả màu sắc nhận diện
-        TextView colorTextView = findViewById(R.id.color_text);
-        colorTextView.setText("Detected Color: " + color);
-
-        // Hoặc hiển thị màu sắc thông qua Toast
-        Toast.makeText(this, "Detected Color: " + color, Toast.LENGTH_SHORT).show();
-    }
-
-    private String detectColorHSV(float hue, float saturation, float value, int red, int green, int blue) {
-        // Kiểm tra màu đen: Sự bão hòa rất thấp và giá trị sáng rất thấp
-        if (saturation < 0.1 && value < 0.1) {
-            return "Black"; // Màu đen
-        }
-
-        // Kiểm tra màu trắng: Sự bão hòa thấp và giá trị sáng gần 1
-        if (saturation < 0.1 && value > 0.9) {
-            return "White"; // Màu trắng
-        }
-
-        // Dựa vào giá trị Hue để phân loại màu sắc
-        // Dựa vào giá trị Hue để phân loại màu sắc
-        if (hue >= 0 && hue <= 15) {
-            return "Red"; // Đỏ
-        } else if (hue > 15 && hue <= 30) {
-            return "Orange"; // Cam
-        } else if (hue > 30 && hue <= 45) {
-            return "Yellow-Orange"; // Vàng cam
-        } else if (hue > 45 && hue <= 60) {
-            return "Yellow"; // Vàng
-        } else if (hue > 60 && hue <= 75) {
-            return "Yellow-Green"; // Vàng xanh
-        } else if (hue > 75 && hue <= 90) {
-            return "Lime Green"; // Xanh chanh
-        } else if (hue > 90 && hue <= 105) {
-            return "Green"; // Xanh lá
-        } else if (hue > 105 && hue <= 120) {
-            return "Emerald Green"; // Xanh ngọc
-        } else if (hue > 120 && hue <= 135) {
-            return "Spring Green"; // Xanh xuân
-        } else if (hue > 135 && hue <= 150) {
-            return "Sea Green"; // Xanh biển
-        } else if (hue > 150 && hue <= 165) {
-            return "Teal"; // Xanh ngọc
-        } else if (hue > 165 && hue <= 180) {
-            return "Turquoise"; // Xanh lam
-        } else if (hue > 180 && hue <= 195) {
-            return "Cyan"; // Cyan
-        } else if (hue > 195 && hue <= 210) {
-            return "Sky Blue"; // Xanh da trời
-        } else if (hue > 210 && hue <= 225) {
-            return "Azure"; // Xanh lam nhạt
-        } else if (hue > 225 && hue <= 240) {
-            return "Blue"; // Xanh dương
-        } else if (hue > 240 && hue <= 255) {
-            return "Royal Blue"; // Xanh hoàng gia
-        } else if (hue > 255 && hue <= 270) {
-            return "Purple"; // Tím
-        } else if (hue > 270 && hue <= 285) {
-            return "Magenta"; // Hồng đậm
-        } else if (hue > 285 && hue <= 300) {
-            return "Violet"; // Tím violet
-        } else if (hue > 300 && hue <= 315) {
-            return "Fuchsia"; // Hồng fuchsia
+    // Hàm trích xuất giá trị từ JSON trả về từ JavaScript sử dụng regex
+    private String extractJsonValue(String json, String key) {
+        String pattern = "\"" + key + "\":\"(.*?)\"";
+        Pattern regex = Pattern.compile(pattern);
+        Matcher matcher = regex.matcher(json);
+        if (matcher.find()) {
+            String value = matcher.group(1);
+            Log.d("ExtractJson", "Giá trị của " + key + " là: " + value);
+            return value;
         } else {
-            return "Pink"; // Hồng
+            Log.w("ExtractJson", "Không tìm thấy khóa: " + key);
+            return "Không xác định";
         }
     }
 
-    // Xử lý kết quả trả về từ việc yêu cầu quyền camera
+    // Hàm điều chỉnh alpha của màu (tạo nền bán trong suốt)
+    private int adjustAlpha(int color, float factor) {
+        int alpha = Math.round(Color.alpha(color) * factor);
+        int red = Color.red(color);
+        int green = Color.green(color);
+        int blue = Color.blue(color);
+        return Color.argb(alpha, red, green, blue);
+    }
+
     @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (requestCode == REQUEST_CAMERA_PERMISSION) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Nếu quyền camera được cấp, khởi động camera
-                startCamera();
+                startCameraAndAnalysis();
             } else {
-                Log.e("Permission", "Camera permission denied.");
+                Toast.makeText(this, "Cần cấp quyền camera để sử dụng", Toast.LENGTH_SHORT).show();
             }
         }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 }
+//1234567890

@@ -5,10 +5,10 @@
     <!-- Quyền sử dụng camera -->
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <!-- Quyền bộ nhớ (nếu cần thiết) -->
+    <!-- Quyền truy cập bộ nhớ (nếu cần) -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="35" />
 
-    <!-- Camera feature -->
+    <!-- Yêu cầu có camera -->
     <uses-feature android:name="android.hardware.camera" android:required="true" />
 
     <application
@@ -22,13 +22,20 @@
         android:theme="@style/Theme.BachKimThanBao"
         tools:targetApi="31">
 
+        <!-- HomeActivity làm màn hình launcher chính -->
         <activity
-            android:name=".MainActivity"
+            android:name=".HomeActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- MainActivity (ví dụ cho chức năng camera) -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true" />
     </application>
+
 </manifest>
