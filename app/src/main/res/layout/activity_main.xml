@@ -8,7 +8,6 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <!-- Thanh tiêu đề -->
     <TextView
         android:id="@+id/tv_title"
         android:layout_width="0dp"
@@ -23,7 +22,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Khung camera: chứa PreviewView, ImageView và overlay -->
     <FrameLayout
         android:id="@+id/camera_frame"
         android:layout_width="0dp"
@@ -34,13 +32,11 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- PreviewView của CameraX -->
         <androidx.camera.view.PreviewView
             android:id="@+id/preview_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
-        <!-- ImageView hiển thị ảnh từ thư viện -->
         <ImageView
             android:id="@+id/iv_chosen_image"
             android:layout_width="match_parent"
@@ -48,17 +44,15 @@
             android:scaleType="centerCrop"
             android:visibility="gone" />
 
-        <!-- Ô crosshair ở giữa -->
         <View
             android:id="@+id/center_overlay"
-            android:layout_width="50dp"
-            android:layout_height="46dp"
+            android:layout_width="43dp"
+            android:layout_height="34dp"
             android:layout_gravity="center"
-            android:background="@drawable/overlay_border" />
+            android:background="@drawable/circle_overlay" />
 
     </FrameLayout>
 
-    <!-- Khu vực dưới cùng hiển thị thông tin màu và nút chức năng -->
     <LinearLayout
         android:id="@+id/layout_bottom"
         android:layout_width="0dp"
@@ -71,7 +65,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- Thông tin màu sắc -->
         <TextView
             android:id="@+id/tv_color_info"
             android:layout_width="match_parent"
@@ -81,7 +74,6 @@
             android:textSize="16sp"
             android:layout_marginBottom="8dp" />
 
-        <!-- Container cho các nút chức năng -->
         <LinearLayout
             android:id="@+id/button_container"
             android:layout_width="match_parent"
@@ -93,18 +85,11 @@
                 android:id="@+id/btn_capture"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="16dp"
                 android:text="Chụp Ảnh" />
 
-            <Button
-                android:id="@+id/btn_library"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Thư viện" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- WebView ẩn để chạy chroma.js & ntc.js -->
     <WebView
         android:id="@+id/chroma_webview"
         android:layout_width="0dp"

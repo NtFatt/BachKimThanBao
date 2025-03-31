@@ -1,365 +1,354 @@
 package com.mydoan.bachkimthanbao;
 
 import android.Manifest;
-import android.content.Intent;
+import android.content.ContentValues;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.drawable.BitmapDrawable;
-import android.net.Uri;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.os.Handler;
 import android.provider.MediaStore;
 import android.util.Log;
-import android.view.MotionEvent;
+import android.view.MotionEvent; // <-- Added Import
+import android.view.ScaleGestureDetector; // <-- Added Import
 import android.view.View;
-import android.webkit.WebSettings;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.widget.Button;
-import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.nio.ByteBuffer;
-import java.io.IOException;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.camera.core.Camera; // <-- Added Import
+import androidx.camera.core.CameraInfo; // <-- Added Import (Potentially needed for accurate zoom limits)
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
-import androidx.camera.core.ImageAnalysis;
-import androidx.camera.core.ImageProxy;
 import androidx.camera.core.Preview;
+import androidx.camera.core.ZoomState; // <-- Added Import
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import com.google.android.material.color.utilities.Hct;
+import androidx.lifecycle.LiveData; // <-- Added Import (If observing ZoomState LiveData)
 
 import com.google.common.util.concurrent.ListenableFuture;
 
-import android.util.Size;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+import java.util.concurrent.ExecutionException; // <-- Added Import for future.get()
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final int REQUEST_CAMERA_PERMISSION = 100;
-    private static final int REQUEST_GALLERY_IMAGE = 999;
-
     private PreviewView previewView;
-    private ImageView ivChosenImage;
-    private FrameLayout cameraFrame;
-    private View centerOverlay; // Overlay (crosshair) ở giữa
-    private TextView tvColorInfo;
-    private Button btnCapture, btnLibrary;
-    private WebView webView; // WebView dùng để gọi chroma.js & ntc.js
-
+    private Button captureButton;
+    private TextView colorInfoTextView;
+    private WebView chromaWebView;
     private ImageCapture imageCapture;
-    private ProcessCameraProvider cameraProvider;
+    private View centerOverlay;
 
-    // Flag xác định chế độ hiển thị: camera hay ảnh từ thư viện
-    private boolean isLibraryMode = false;
+    private static final int REQUEST_CAMERA_PERMISSION = 10;
+    private Handler handler = new Handler();
+    private Runnable colorDetectionRunnable;
+    private String lastHexColor = "";
+
+    // --- Zoom Variables ---
+    private ProcessCameraProvider cameraProvider; // Store CameraProvider
+    private Camera camera; // Store Camera instance
+    private ScaleGestureDetector scaleGestureDetector;
+    private float currentZoomRatio = 1.0f; // Start with no zoom
+    // --- End Zoom Variables ---
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Ánh xạ UI từ layout
         previewView = findViewById(R.id.preview_view);
-        ivChosenImage = findViewById(R.id.iv_chosen_image);
-        cameraFrame = findViewById(R.id.camera_frame);
+        captureButton = findViewById(R.id.btn_capture);
+        colorInfoTextView = findViewById(R.id.tv_color_info);
+        chromaWebView = findViewById(R.id.chroma_webview);
         centerOverlay = findViewById(R.id.center_overlay);
-        tvColorInfo = findViewById(R.id.tv_color_info);
-        btnCapture = findViewById(R.id.btn_capture);
-        btnLibrary = findViewById(R.id.btn_library);
-        webView = findViewById(R.id.chroma_webview);
 
-        // Cấu hình WebView cho JavaScript
-        WebSettings webSettings = webView.getSettings();
-        webSettings.setJavaScriptEnabled(true);
-        // Load file index.html chứa chroma.js & ntc.js từ assets
-        webView.loadUrl("file:///android_asset/index.html");
-
-        // Kiểm tra quyền Camera
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                == PackageManager.PERMISSION_GRANTED) {
-            startCameraAndAnalysis();
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA},
+                    REQUEST_CAMERA_PERMISSION);
         } else {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
+            startCamera();
         }
 
-        // Button chụp ảnh (capture) khi đang ở chế độ camera
-        btnCapture.setOnClickListener(v -> {
-            if (!isLibraryMode) {
-                takePhoto();
-            } else {
-                Toast.makeText(this, "Chế độ thư viện: Hãy chạm vào ảnh để lấy màu", Toast.LENGTH_SHORT).show();
+        chromaWebView.getSettings().setJavaScriptEnabled(true);
+        chromaWebView.addJavascriptInterface(new JavaScriptInterface(), "Android");
+        chromaWebView.loadUrl("file:///android_asset/chroma.html");
+
+        captureButton.setOnClickListener(v -> capturePhoto());
+
+        colorDetectionRunnable = new Runnable() {
+            @Override
+            public void run() {
+                extractColorFromCenter();
+                handler.postDelayed(this, 100); // Continue detecting color
             }
-        });
+        };
 
-        // Button chọn ảnh từ thư viện
-        btnLibrary.setOnClickListener(v -> pickImageFromGallery());
-
-        // Thiết lập sự kiện chạm vào ảnh từ thư viện để lấy màu tại điểm chạm
-        initTouchListenerForImage();
+        // --- Initialize ScaleGestureDetector ---
+        setupPinchToZoom();
+        // --- End Initialization ---
     }
 
-    // Khởi tạo CameraX với Preview, ImageCapture, và ImageAnalysis
-    private void startCameraAndAnalysis() {
-        ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(this);
+    @Override
+    protected void onResume() {
+        super.onResume();
+        handler.post(colorDetectionRunnable); // Start color detection when resumed
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        handler.removeCallbacks(colorDetectionRunnable); // Stop color detection when paused
+    }
+
+    private void startCamera() {
+        ListenableFuture<ProcessCameraProvider> cameraProviderFuture =
+                ProcessCameraProvider.getInstance(this);
+
         cameraProviderFuture.addListener(() -> {
             try {
+                // Store the CameraProvider
                 cameraProvider = cameraProviderFuture.get();
-                bindCameraUseCases(cameraProvider);
+
+                Preview preview = new Preview.Builder().build();
+                imageCapture = new ImageCapture.Builder()
+                        // Optionally set capture mode, target resolution etc. here
+                        .build();
+
+                CameraSelector cameraSelector = new CameraSelector.Builder()
+                        .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                        .build();
+
+                preview.setSurfaceProvider(previewView.getSurfaceProvider());
+
+                // Unbind use cases before rebinding
+                cameraProvider.unbindAll();
+
+                // Bind use cases to camera and store the Camera instance
+                camera = cameraProvider.bindToLifecycle(
+                        this, cameraSelector, preview, imageCapture);
+
+                // Apply initial zoom state if necessary (e.g., if app was backgrounded)
+                // updateCameraZoom(); // You might call this if you want to restore zoom
+
+            } catch (ExecutionException | InterruptedException e) {
+                Log.e("CameraX", "Camera provider future failed.", e);
             } catch (Exception e) {
-                Log.e("CameraX", "Lỗi khởi tạo camera: " + e.getMessage());
-                e.printStackTrace();
+                Log.e("CameraX", "Use case binding failed", e);
             }
         }, ContextCompat.getMainExecutor(this));
     }
 
-    private void bindCameraUseCases(ProcessCameraProvider cameraProvider) {
-        CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
-        Preview preview = new Preview.Builder().build();
-        imageCapture = new ImageCapture.Builder().build();
-        ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
-                .setTargetResolution(new Size(640, 480))
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build();
+    private void setupPinchToZoom() {
+        ScaleGestureDetector.SimpleOnScaleGestureListener listener =
+                new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                    @Override
+                    public boolean onScale(ScaleGestureDetector detector) {
+                        if (camera == null) return true; // Camera not ready yet
 
-        imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(this), imageProxy -> {
-            Bitmap bitmap = imageProxyToBitmap(imageProxy);
-            if (bitmap != null) {
-                // Lấy pixel tại tâm của bitmap
-                int centerX = bitmap.getWidth() / 2;
-                int centerY = bitmap.getHeight() / 2;
-                int centerPixel = bitmap.getPixel(centerX, centerY);
-                String hex = String.format("#%02X%02X%02X", Color.red(centerPixel),
-                        Color.green(centerPixel), Color.blue(centerPixel));
-                runOnUiThread(() -> updateColorInfoWithChroma(hex));
-            }
-            imageProxy.close();
+                        // Get current zoom state
+                        CameraInfo cameraInfo = camera.getCameraInfo();
+                        LiveData<ZoomState> zoomState = cameraInfo.getZoomState();
+                        ZoomState currentZoomState = zoomState.getValue(); // Get current value (might be null initially)
+
+                        if (currentZoomState != null) {
+                            // Calculate the new desired zoom ratio based on the gesture
+                            float delta = detector.getScaleFactor();
+                            currentZoomRatio = currentZoomState.getZoomRatio() * delta;
+
+                            // Clamp the zoom ratio within the limits supported by the camera
+                            currentZoomRatio = Math.max(currentZoomState.getMinZoomRatio(),
+                                    Math.min(currentZoomRatio, currentZoomState.getMaxZoomRatio()));
+
+                            // Set the zoom ratio on the camera
+                            Log.d("CameraX", "Setting Zoom Ratio: " + currentZoomRatio);
+                            camera.getCameraControl().setZoomRatio(currentZoomRatio)
+                                    .addListener(() -> {}, ContextCompat.getMainExecutor(MainActivity.this)); // Optional: Add listener for completion/failure
+                        } else {
+                            Log.w("CameraX", "ZoomState is null, cannot process scale.");
+                        }
+                        return true; // Indicate the event was handled
+                    }
+                };
+
+        scaleGestureDetector = new ScaleGestureDetector(this, listener);
+
+        // Attach the detector to the preview view for touch events
+        previewView.setOnTouchListener((view, motionEvent) -> {
+            // Pass touch events to the scale gesture detector
+            boolean handled = scaleGestureDetector.onTouchEvent(motionEvent);
+            // You might want to handle other touch events here if needed
+            // Returning true consumes the event, false allows it to propagate
+            // For zooming, consuming it is usually desired.
+            return handled;
+            // Alternatively, if you want activity-wide gestures:
+            // return scaleGestureDetector.onTouchEvent(motionEvent);
+            // And use the onTouchEvent override below instead of setting listener on previewView
         });
-
-        cameraProvider.unbindAll();
-        preview.setSurfaceProvider(previewView.getSurfaceProvider());
-        cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture, imageAnalysis);
-
-        // Khi dùng camera, hiển thị preview, ẩn ảnh thư viện
-        previewView.setVisibility(View.VISIBLE);
-        ivChosenImage.setVisibility(View.GONE);
-        isLibraryMode = false;
     }
 
-    // Phương thức chụp ảnh (capture) từ CameraX
-    private void takePhoto() {
-        if (imageCapture == null) return;
-        imageCapture.takePicture(ContextCompat.getMainExecutor(this),
-                new ImageCapture.OnImageCapturedCallback() {
+
+    /*
+    // --- Alternative: Activity-level touch handling ---
+    // If you prefer handling touch events for the whole activity screen,
+    // uncomment this method and REMOVE the previewView.setOnTouchListener(...) call above.
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        // Pass activity touch events to the scale gesture detector
+        if (scaleGestureDetector != null) {
+             scaleGestureDetector.onTouchEvent(event);
+        }
+        // Return true if you want to indicate the event was handled here,
+        // or call super.onTouchEvent(event) if you want default Activity handling as well.
+        return true;
+    }
+    // --- End Alternative ---
+    */
+
+
+    private void capturePhoto() {
+        if (imageCapture == null) {
+            Log.w("CameraX", "ImageCapture use case is null. Cannot capture photo.");
+            Toast.makeText(this, "Camera not ready.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
+        String fileName = "IMG_" + sdf.format(new Date()) + ".jpg";
+
+        ContentValues contentValues = new ContentValues();
+        contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+        contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
+        // Consider adding WRITE_EXTERNAL_STORAGE permission handling for older Android versions if needed
+        contentValues.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/ColorApp"); // Saves to Pictures/ColorApp
+
+        ImageCapture.OutputFileOptions outputOptions =
+                new ImageCapture.OutputFileOptions.Builder(
+                        getContentResolver(),
+                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI, // Use MediaStore for saving
+                        contentValues)
+                        .build();
+
+        imageCapture.takePicture(outputOptions, ContextCompat.getMainExecutor(this),
+                new ImageCapture.OnImageSavedCallback() {
                     @Override
-                    public void onCaptureSuccess(@NonNull ImageProxy imageProxy) {
-                        Bitmap bitmap = imageProxyToBitmap(imageProxy);
-                        imageProxy.close();
-                        if (bitmap != null) {
-                            ivChosenImage.setImageBitmap(bitmap);
-                            ivChosenImage.setVisibility(View.VISIBLE);
-                            previewView.setVisibility(View.GONE);
-                            isLibraryMode = true;
-                            analyzeBitmap(bitmap);
-                        }
+                    public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
+                        String msg = "Photo saved: " + outputFileResults.getSavedUri();
+                        Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show();
+                        Log.d("CameraX", msg);
                     }
 
                     @Override
                     public void onError(@NonNull ImageCaptureException exception) {
-                        Toast.makeText(MainActivity.this, "Lỗi chụp ảnh: " + exception.getMessage(), Toast.LENGTH_SHORT).show();
-                        Log.e("CameraX", "Error: " + exception.getMessage());
+                        Log.e("CameraX", "Photo capture failed: " + exception.getMessage(), exception);
+                        Toast.makeText(MainActivity.this, "Photo capture failed: " + exception.getMessage(), Toast.LENGTH_LONG).show();
                     }
                 });
     }
 
-    // Chuyển ImageProxy thành Bitmap
-    private Bitmap imageProxyToBitmap(ImageProxy imageProxy) {
-        try {
-            ByteBuffer buffer = imageProxy.getPlanes()[0].getBuffer();
-            byte[] bytes = new byte[buffer.remaining()];
-            buffer.get(bytes);
-            return BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
+    private void extractColorFromCenter() {
+        // Use post to ensure the view is laid out and bitmap is available
+        previewView.post(() -> {
+            Bitmap bitmap = previewView.getBitmap();
+            if (bitmap != null && !bitmap.isRecycled()) { // Check if bitmap is valid
+                // Calculate center based on bitmap dimensions (more reliable)
+                int centerX = bitmap.getWidth() / 2;
+                int centerY = bitmap.getHeight() / 2;
 
-    // Mở gallery để chọn ảnh
-    private void pickImageFromGallery() {
-        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        intent.setType("image/*");
-        startActivityForResult(intent, REQUEST_GALLERY_IMAGE);
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_GALLERY_IMAGE && resultCode == RESULT_OK && data != null) {
-            Uri uri = data.getData();
-            try {
-                Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
-                isLibraryMode = true;
-                ivChosenImage.setImageBitmap(bitmap);
-                ivChosenImage.setVisibility(View.VISIBLE);
-                previewView.setVisibility(View.GONE);
-                analyzeBitmap(bitmap);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    // Sự kiện chạm vào ảnh từ thư viện để lấy màu tại điểm chạm
-    private void initTouchListenerForImage() {
-        ivChosenImage.setOnTouchListener((v, event) -> {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                Bitmap bitmap = ((BitmapDrawable) ivChosenImage.getDrawable()).getBitmap();
-                if (bitmap != null) {
-                    int pixelColor = getPixelColorFromImageView(bitmap, ivChosenImage, event.getX(), event.getY());
-                    String hex = String.format("#%02X%02X%02X",
-                            Color.red(pixelColor), Color.green(pixelColor), Color.blue(pixelColor));
-                    updateColorInfoWithChroma(hex);
-                }
-            }
-            return true;
-        });
-    }
-
-    // Chuyển đổi tọa độ từ ImageView sang tọa độ thực của Bitmap
-    private int getPixelColorFromImageView(Bitmap bitmap, ImageView imageView, float viewX, float viewY) {
-        int imageViewWidth = imageView.getWidth();
-        int imageViewHeight = imageView.getHeight();
-        int bitmapWidth = bitmap.getWidth();
-        int bitmapHeight = bitmap.getHeight();
-
-        float scaleX = (float) bitmapWidth / imageViewWidth;
-        float scaleY = (float) bitmapHeight / imageViewHeight;
-
-        int xInBitmap = (int)(viewX * scaleX);
-        int yInBitmap = (int)(viewY * scaleY);
-
-        xInBitmap = Math.max(0, Math.min(xInBitmap, bitmapWidth - 1));
-        yInBitmap = Math.max(0, Math.min(yInBitmap, bitmapHeight - 1));
-
-        return bitmap.getPixel(xInBitmap, yInBitmap);
-    }
-
-    // Phân tích Bitmap (ảnh từ thư viện hoặc ảnh chụp) và cập nhật màu trung bình
-    private void analyzeBitmap(Bitmap bitmap) {
-        if (bitmap == null) return;
-        int colorAvg = getAverageColor(bitmap);
-        String hex = String.format("#%02X%02X%02X",
-                Color.red(colorAvg), Color.green(colorAvg), Color.blue(colorAvg));
-        updateColorInfoWithChroma(hex);
-    }
-
-    // Tính màu trung bình của Bitmap (lấy mẫu theo bước 10 pixel)
-    private int getAverageColor(Bitmap bitmap) {
-        long sumR = 0, sumG = 0, sumB = 0;
-        int width = bitmap.getWidth();
-        int height = bitmap.getHeight();
-        int count = 0;
-        int step = 10;
-        for (int y = 0; y < height; y += step) {
-            for (int x = 0; x < width; x += step) {
-                int pixel = bitmap.getPixel(x, y);
-                sumR += Color.red(pixel);
-                sumG += Color.green(pixel);
-                sumB += Color.blue(pixel);
-                count++;
-            }
-        }
-        int avgR = (int)(sumR / count);
-        int avgG = (int)(sumG / count);
-        int avgB = (int)(sumB / count);
-        return Color.rgb(avgR, avgG, avgB);
-    }
-
-    // Cập nhật thông tin màu sử dụng hàm JavaScript (chroma.js & ntc.js)
-    private void updateColorInfoWithChroma(String hexColor) {
-        String script = "processColor('" + hexColor + "');";
-        webView.evaluateJavascript(script, value -> {
-            if (value != null && value.length() > 2) {
-                try {
-                    String json = value;
-                    if (json.startsWith("\"") && json.endsWith("\"")) {
-                        json = json.substring(1, json.length() - 1);
-                    }
-                    Log.d("UpdateColorInfo", "JSON trả về: " + json);
-
-                    String colorName = extractJsonValue(json, "name");
-                    String darkColor = extractJsonValue(json, "darkColor");
-                    if (darkColor.equals("Không xác định")) {
-                        darkColor = hexColor;
-                    }
-
-                    String info = "Mã màu: " + hexColor + "\nTên màu: " + colorName;
-                    tvColorInfo.setText(info);
-
+                // Ensure coordinates are within bitmap bounds
+                if (centerX >= 0 && centerX < bitmap.getWidth() && centerY >= 0 && centerY < bitmap.getHeight()) {
                     try {
-                        int parsedColor = Color.parseColor(darkColor);
-                        tvColorInfo.setTextColor(parsedColor);
-                        // Đặt nền bán trong suốt dựa trên darkColor
-                        tvColorInfo.setBackgroundColor(adjustAlpha(parsedColor, 0.2f));
-                    } catch (Exception e) {
-                        Log.e("UpdateColorInfo", "Lỗi parse darkColor: " + e.getMessage());
+                        int pixel = bitmap.getPixel(centerX, centerY); // Get pixel from the exact center
+
+                        int red = Color.red(pixel);
+                        int green = Color.green(pixel);
+                        int blue = Color.blue(pixel);
+                        String hexColor = String.format("#%02X%02X%02X", red, green, blue);
+
+                        // Update only if color changes to avoid unnecessary UI updates and JS calls
+                        if (!hexColor.equals(lastHexColor)) {
+                            // Update the border color of the center overlay
+                            if (centerOverlay != null) {
+                                GradientDrawable border = new GradientDrawable();
+                                border.setShape(GradientDrawable.RECTANGLE); // Define shape
+                                border.setStroke(6, pixel); // Stroke width and color
+                                border.setColor(Color.TRANSPARENT); // Make the inside transparent
+                                centerOverlay.setBackground(border);
+                            }
+
+                            // Call JavaScript to get the color name and update TextView
+                            // Ensure the WebView is loaded before calling evaluateJavascript
+                            chromaWebView.evaluateJavascript("javascript:getColorName('" + hexColor + "')", colorNameJson -> {
+                                // The result from JS might be JSON string (e.g., "\"Lime\""), remove quotes if necessary
+                                String colorName = colorNameJson.replace("\"", "");
+                                if (colorName.equals("null") || colorName.isEmpty()) {
+                                    colorName = "Unknown"; // Handle cases where JS returns null or empty
+                                }
+                                String colorText = colorName + " (" + hexColor + ")";
+                                colorInfoTextView.setText(colorText);
+                                colorInfoTextView.setTextColor(pixel); // Set text color to the detected color
+                            });
+
+                            lastHexColor = hexColor; // Update the last detected color
+                        }
+                    } catch (IllegalArgumentException e) {
+                        Log.e("ColorExtraction", "Invalid coordinates for getPixel: " + centerX + "," + centerY + " in bitmap " + bitmap.getWidth() + "x" + bitmap.getHeight());
+                    } catch (IllegalStateException e) {
+                        Log.e("ColorExtraction", "Could not get pixel, bitmap might be recycled.", e);
                     }
-                } catch (Exception e) {
-                    Log.e("UpdateColorInfo", "Lỗi xử lý JSON: " + e.getMessage());
-                    tvColorInfo.setText("Mã màu: " + hexColor + "\nTên màu: Không xác định");
+
+                } else {
+                    Log.w("ColorExtraction", "Calculated center (" + centerX + "," + centerY + ") is outside bitmap bounds (" + bitmap.getWidth() + "x" + bitmap.getHeight() + ")");
                 }
+
+                // Note: It's generally not recommended to recycle the bitmap obtained from PreviewView#getBitmap()
+                // as the PreviewView manages its lifecycle. Let CameraX handle it.
+                // if (bitmap != null && !bitmap.isRecycled()) {
+                //     bitmap.recycle(); // Avoid this unless you are sure you manage the bitmap copy
+                // }
+
             } else {
-                tvColorInfo.setText("Mã màu: " + hexColor + "\nTên màu: Không xác định");
+                // Log.v("ColorExtraction", "Bitmap from PreviewView is null or recycled."); // Verbose logging if needed
             }
         });
     }
 
-    // Hàm trích xuất giá trị từ JSON trả về từ JavaScript sử dụng regex
-    private String extractJsonValue(String json, String key) {
-        String pattern = "\"" + key + "\":\"(.*?)\"";
-        Pattern regex = Pattern.compile(pattern);
-        Matcher matcher = regex.matcher(json);
-        if (matcher.find()) {
-            String value = matcher.group(1);
-            Log.d("ExtractJson", "Giá trị của " + key + " là: " + value);
-            return value;
-        } else {
-            Log.w("ExtractJson", "Không tìm thấy khóa: " + key);
-            return "Không xác định";
-        }
-    }
 
-    // Hàm điều chỉnh alpha của màu (tạo nền bán trong suốt)
-    private int adjustAlpha(int color, float factor) {
-        int alpha = Math.round(Color.alpha(color) * factor);
-        int red = Color.red(color);
-        int green = Color.green(color);
-        int blue = Color.blue(color);
-        return Color.argb(alpha, red, green, blue);
+    // JavaScriptInterface remains the same
+    public class JavaScriptInterface {
+        @JavascriptInterface
+        public void setColorName(String colorName) {
+            // This method might not be strictly needed if the result is handled
+            // directly in the evaluateJavascript callback, but can be kept for flexibility.
+            runOnUiThread(() -> {
+                // Example: Log the name received from JS if needed for debugging
+                // Log.d("JSInterface", "Received color name: " + colorName);
+            });
+        }
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_CAMERA_PERMISSION) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startCameraAndAnalysis();
+                startCamera(); // Permission granted, start camera
             } else {
-                Toast.makeText(this, "Cần cấp quyền camera để sử dụng", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Camera permission is required to use this app.", Toast.LENGTH_LONG).show();
+                // Optionally, disable camera-related features or close the app
             }
         }
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 }
-//1234567890

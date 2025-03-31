@@ -6,17 +6,19 @@ import androidx.cardview.widget.CardView;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.widget.Toast;
 
 public class HomeActivity extends AppCompatActivity {
 
     private CardView cardCapture, cardPalette, cardGallery, cardSavedColors, cardShare, cardSubscription;
-    private static final int REQUEST_GALLERY_IMAGE = 1001; // mã yêu cầu riêng
+    private static final int REQUEST_GALLERY_IMAGE = 1001; // Mã yêu cầu riêng cho việc chọn ảnh từ Gallery
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.home_activity);
 
+        // Tìm các CardView từ layout
         cardCapture = findViewById(R.id.card_capture);
         cardPalette = findViewById(R.id.card_palette);
         cardGallery = findViewById(R.id.card_gallery);
@@ -32,8 +34,7 @@ public class HomeActivity extends AppCompatActivity {
 
         // Card Palette: (Chưa cập nhật)
         cardPalette.setOnClickListener(v -> {
-            // Intent intent = new Intent(this, MyPaletteActivity.class);
-            // startActivity(intent);
+            Toast.makeText(this, "Chức năng Palette đang được phát triển.", Toast.LENGTH_SHORT).show();
         });
 
         // Card Gallery: Mở Image Picker
@@ -45,8 +46,7 @@ public class HomeActivity extends AppCompatActivity {
 
         // Card Saved Colors: (Chưa cập nhật)
         cardSavedColors.setOnClickListener(v -> {
-            // Intent intent = new Intent(this, SavedColorsActivity.class);
-            // startActivity(intent);
+            Toast.makeText(this, "Chức năng Saved Colors đang được phát triển.", Toast.LENGTH_SHORT).show();
         });
 
         // Card Share: Chia sẻ ứng dụng
@@ -60,8 +60,7 @@ public class HomeActivity extends AppCompatActivity {
 
         // Card Subscription: (Chưa cập nhật)
         cardSubscription.setOnClickListener(v -> {
-            // Intent intent = new Intent(this, SubscriptionActivity.class);
-            // startActivity(intent);
+            Toast.makeText(this, "Chức năng Subscription đang được phát triển.", Toast.LENGTH_SHORT).show();
         });
     }
 
@@ -69,12 +68,20 @@ public class HomeActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if(requestCode == REQUEST_GALLERY_IMAGE && resultCode == RESULT_OK && data != null) {
-            Uri imageUri = data.getData();
-            // Chuyển sang GalleryActivity, truyền URI của ảnh
-            Intent intent = new Intent(this, GalleryActivity.class);
-            intent.setData(imageUri);
-            startActivity(intent);
+        if (requestCode == REQUEST_GALLERY_IMAGE) {
+            if (resultCode == RESULT_OK && data != null) {
+                Uri imageUri = data.getData();
+                if (imageUri != null) {
+                    // Chuyển sang GalleryActivity, truyền URI của ảnh
+                    Intent intent = new Intent(this, GalleryActivity.class);
+                    intent.setData(imageUri);
+                    startActivity(intent);
+                } else {
+                    Toast.makeText(this, "Không có ảnh được chọn.", Toast.LENGTH_SHORT).show();
+                }
+            } else {
+                Toast.makeText(this, "Không có ảnh được chọn.", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 }
