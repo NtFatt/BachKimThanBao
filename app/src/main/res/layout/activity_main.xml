@@ -6,88 +6,146 @@
     android:id="@+id/main_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#FFE4E1"
     tools:context=".MainActivity">
 
-    <TextView
-        android:id="@+id/tv_title"
+    <!-- Top Bar với nút back và tiêu đề -->
+    <LinearLayout
+        android:id="@+id/top_bar"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="?attr/actionBarSize"
         android:background="?android:attr/colorPrimary"
-        android:gravity="center"
-        android:padding="10dp"
-        android:text="Nhận biết màu sắc"
-        android:textColor="@android:color/white"
-        android:textSize="20sp"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:gravity="center_vertical"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent">
 
-    <FrameLayout
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btn_back"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Quay lại"
+            android:padding="12dp"
+            android:scaleType="fitCenter"
+            app:srcCompat="@drawable/ic_arrow_back"
+            app:tint="@android:color/white"/>
+
+        <!-- Tiêu đề -->
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_weight="1"
+            android:text="Nhận biết màu sắc"
+            android:textColor="@android:color/white"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:ellipsize="end"
+            android:maxLines="1"/>
+
+    </LinearLayout>
+
+    <!-- Khung camera được tối ưu -->
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/camera_frame"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:background="@android:color/black"
-        app:layout_constraintTop_toBottomOf="@id/tv_title"
+        app:layout_constraintTop_toBottomOf="@id/top_bar"
         app:layout_constraintBottom_toTopOf="@id/layout_bottom"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
         <androidx.camera.view.PreviewView
             android:id="@+id/preview_view"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:clipChildren="false"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"/>
+
+        <!-- Overlay được thiết kế lại -->
+        <ImageView
+            android:id="@+id/center_overlay"
+            android:layout_width="42dp"
+            android:layout_height="38dp"
+            android:elevation="10dp"
+            android:src="@drawable/circle_overlay"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageView
             android:id="@+id/iv_chosen_image"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
             android:scaleType="centerCrop"
-            android:visibility="gone" />
+            android:visibility="gone"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"/>
 
-        <View
-            android:id="@+id/center_overlay"
-            android:layout_width="43dp"
-            android:layout_height="34dp"
-            android:layout_gravity="center"
-            android:background="@drawable/circle_overlay" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
-    </FrameLayout>
-
+    <!-- Bottom Panel được thiết kế lại -->
     <LinearLayout
         android:id="@+id/layout_bottom"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:background="#80000000"
         android:orientation="vertical"
-        android:padding="8dp"
-        app:layout_constraintTop_toBottomOf="@id/camera_frame"
+        android:padding="16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <TextView
-            android:id="@+id/tv_color_info"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Thông tin màu sắc:"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tv_color_info"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Màu phát hiện:"
+                android:textColor="@android:color/white"
+                android:textSize="18sp"
+                android:textStyle="bold"/>
+
+            <View
+                android:id="@+id/color_display_view"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="16dp"
+                android:background="@drawable/circle_background"
+                android:elevation="4dp"/>
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btn_capture"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="16dp"
+            android:backgroundTint="#FFB6C1"
+            android:text="CHỤP ẢNH"
+            android:textAllCaps="false"
             android:textColor="@android:color/white"
             android:textSize="16sp"
-            android:layout_marginBottom="8dp" />
+            android:elevation="4dp"
+            style="@style/Widget.AppCompat.Button.Colored"/>
 
-        <LinearLayout
-            android:id="@+id/button_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/btn_capture"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Chụp Ảnh" />
-
-        </LinearLayout>
     </LinearLayout>
 
     <WebView
@@ -98,6 +156,6 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

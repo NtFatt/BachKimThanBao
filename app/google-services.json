@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "109888508470",
+    "project_id": "bachkim-thanbao",
+    "storage_bucket": "bachkim-thanbao.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:109888508470:android:5a4c893e1c02cb1c4afe97",
+        "android_client_info": {
+          "package_name": "com.mydoan.bachkimthanbao"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvu8QcMBdgbAumOl4owR_1WVl62gDtATM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

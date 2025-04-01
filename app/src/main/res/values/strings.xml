@@ -1,3 +1,16 @@
 <resources>
     <string name="app_name">BachKimThanBao</string>
+    <string name="selected_image_from_gallery">Ảnh đã chọn từ thư viện</string>
+    <string name="gallery">Thư viện</string>
+    <string name="camera">Máy ảnh</string>
+    <string name="cancel">Hủy</string>
+    <string name="ok">OK</string>
+    <string name="permission_denied">Quyền truy cập bị từ chối.</string>
+    <string name="permission_camera_rationale">Ứng dụng cần quyền truy cập máy ảnh để chụp ảnh.</string>
+    <string name="permission_storage_rationale">Ứng dụng cần quyền truy cập bộ nhớ để chọn ảnh từ thư viện.</string>
+    <string name="take_picture">Chụp ảnh</string>
+    <string name="choose_from_gallery">Chọn từ thư viện</string>
+    <string name="error_image_not_found">Lỗi: Không tìm thấy ảnh.</string>
+    <string name="error_camera_unavailable">Lỗi: Máy ảnh không khả dụng.</string>
+    <string name="back_to_home">Trở về trang chủ</string>
 </resources>

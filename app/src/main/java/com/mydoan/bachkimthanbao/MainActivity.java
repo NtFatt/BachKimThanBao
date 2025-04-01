@@ -10,8 +10,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.util.Log;
-import android.view.MotionEvent; // <-- Added Import
-import android.view.ScaleGestureDetector; // <-- Added Import
+import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
@@ -21,25 +20,25 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.camera.core.Camera; // <-- Added Import
-import androidx.camera.core.CameraInfo; // <-- Added Import (Potentially needed for accurate zoom limits)
+import androidx.camera.core.Camera;
+import androidx.camera.core.CameraInfo;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
 import androidx.camera.core.Preview;
-import androidx.camera.core.ZoomState; // <-- Added Import
+import androidx.camera.core.ZoomState;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.lifecycle.LiveData; // <-- Added Import (If observing ZoomState LiveData)
+import androidx.lifecycle.LiveData;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
-import java.util.concurrent.ExecutionException; // <-- Added Import for future.get()
+import java.util.concurrent.ExecutionException;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -49,6 +48,7 @@ public class MainActivity extends AppCompatActivity {
     private WebView chromaWebView;
     private ImageCapture imageCapture;
     private View centerOverlay;
+    private View colorDisplayView; // Ô màu sắc
 
     private static final int REQUEST_CAMERA_PERMISSION = 10;
     private Handler handler = new Handler();
@@ -56,12 +56,10 @@ public class MainActivity extends AppCompatActivity {
     private String lastHexColor = "";
 
     // --- Zoom Variables ---
-    private ProcessCameraProvider cameraProvider; // Store CameraProvider
-    private Camera camera; // Store Camera instance
+    private ProcessCameraProvider cameraProvider;
+    private Camera camera;
     private ScaleGestureDetector scaleGestureDetector;
-    private float currentZoomRatio = 1.0f; // Start with no zoom
-    // --- End Zoom Variables ---
-
+    private float currentZoomRatio = 1.0f;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -73,7 +71,9 @@ public class MainActivity extends AppCompatActivity {
         colorInfoTextView = findViewById(R.id.tv_color_info);
         chromaWebView = findViewById(R.id.chroma_webview);
         centerOverlay = findViewById(R.id.center_overlay);
+        colorDisplayView = findViewById(R.id.color_display_view); // Lấy tham chiếu đến ô màu sắc
 
+        // Yêu cầu cấp quyền camera nếu chưa được cấp
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA},
@@ -92,25 +92,24 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 extractColorFromCenter();
-                handler.postDelayed(this, 100); // Continue detecting color
+                handler.postDelayed(this, 100);
             }
         };
 
-        // --- Initialize ScaleGestureDetector ---
         setupPinchToZoom();
-        // --- End Initialization ---
+
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        handler.post(colorDetectionRunnable); // Start color detection when resumed
+        handler.post(colorDetectionRunnable);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        handler.removeCallbacks(colorDetectionRunnable); // Stop color detection when paused
+        handler.removeCallbacks(colorDetectionRunnable);
     }
 
     private void startCamera() {
@@ -119,13 +118,10 @@ public class MainActivity extends AppCompatActivity {
 
         cameraProviderFuture.addListener(() -> {
             try {
-                // Store the CameraProvider
                 cameraProvider = cameraProviderFuture.get();
 
                 Preview preview = new Preview.Builder().build();
-                imageCapture = new ImageCapture.Builder()
-                        // Optionally set capture mode, target resolution etc. here
-                        .build();
+                imageCapture = new ImageCapture.Builder().build();
 
                 CameraSelector cameraSelector = new CameraSelector.Builder()
                         .requireLensFacing(CameraSelector.LENS_FACING_BACK)
@@ -133,15 +129,10 @@ public class MainActivity extends AppCompatActivity {
 
                 preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
-                // Unbind use cases before rebinding
                 cameraProvider.unbindAll();
 
-                // Bind use cases to camera and store the Camera instance
                 camera = cameraProvider.bindToLifecycle(
                         this, cameraSelector, preview, imageCapture);
-
-                // Apply initial zoom state if necessary (e.g., if app was backgrounded)
-                // updateCameraZoom(); // You might call this if you want to restore zoom
 
             } catch (ExecutionException | InterruptedException e) {
                 Log.e("CameraX", "Camera provider future failed.", e);
@@ -156,67 +147,30 @@ public class MainActivity extends AppCompatActivity {
                 new ScaleGestureDetector.SimpleOnScaleGestureListener() {
                     @Override
                     public boolean onScale(ScaleGestureDetector detector) {
-                        if (camera == null) return true; // Camera not ready yet
+                        if (camera == null) return true;
 
-                        // Get current zoom state
                         CameraInfo cameraInfo = camera.getCameraInfo();
                         LiveData<ZoomState> zoomState = cameraInfo.getZoomState();
-                        ZoomState currentZoomState = zoomState.getValue(); // Get current value (might be null initially)
+                        ZoomState currentZoomState = zoomState.getValue();
 
                         if (currentZoomState != null) {
-                            // Calculate the new desired zoom ratio based on the gesture
                             float delta = detector.getScaleFactor();
                             currentZoomRatio = currentZoomState.getZoomRatio() * delta;
 
-                            // Clamp the zoom ratio within the limits supported by the camera
                             currentZoomRatio = Math.max(currentZoomState.getMinZoomRatio(),
                                     Math.min(currentZoomRatio, currentZoomState.getMaxZoomRatio()));
 
-                            // Set the zoom ratio on the camera
-                            Log.d("CameraX", "Setting Zoom Ratio: " + currentZoomRatio);
                             camera.getCameraControl().setZoomRatio(currentZoomRatio)
-                                    .addListener(() -> {}, ContextCompat.getMainExecutor(MainActivity.this)); // Optional: Add listener for completion/failure
-                        } else {
-                            Log.w("CameraX", "ZoomState is null, cannot process scale.");
+                                    .addListener(() -> {}, ContextCompat.getMainExecutor(MainActivity.this));
                         }
-                        return true; // Indicate the event was handled
+                        return true;
                     }
                 };
 
         scaleGestureDetector = new ScaleGestureDetector(this, listener);
 
-        // Attach the detector to the preview view for touch events
-        previewView.setOnTouchListener((view, motionEvent) -> {
-            // Pass touch events to the scale gesture detector
-            boolean handled = scaleGestureDetector.onTouchEvent(motionEvent);
-            // You might want to handle other touch events here if needed
-            // Returning true consumes the event, false allows it to propagate
-            // For zooming, consuming it is usually desired.
-            return handled;
-            // Alternatively, if you want activity-wide gestures:
-            // return scaleGestureDetector.onTouchEvent(motionEvent);
-            // And use the onTouchEvent override below instead of setting listener on previewView
-        });
+        previewView.setOnTouchListener((view, motionEvent) -> scaleGestureDetector.onTouchEvent(motionEvent));
     }
-
-
-    /*
-    // --- Alternative: Activity-level touch handling ---
-    // If you prefer handling touch events for the whole activity screen,
-    // uncomment this method and REMOVE the previewView.setOnTouchListener(...) call above.
-    @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        // Pass activity touch events to the scale gesture detector
-        if (scaleGestureDetector != null) {
-             scaleGestureDetector.onTouchEvent(event);
-        }
-        // Return true if you want to indicate the event was handled here,
-        // or call super.onTouchEvent(event) if you want default Activity handling as well.
-        return true;
-    }
-    // --- End Alternative ---
-    */
-
 
     private void capturePhoto() {
         if (imageCapture == null) {
@@ -231,13 +185,12 @@ public class MainActivity extends AppCompatActivity {
         ContentValues contentValues = new ContentValues();
         contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
         contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
-        // Consider adding WRITE_EXTERNAL_STORAGE permission handling for older Android versions if needed
-        contentValues.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/ColorApp"); // Saves to Pictures/ColorApp
+        contentValues.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/ColorApp");
 
         ImageCapture.OutputFileOptions outputOptions =
                 new ImageCapture.OutputFileOptions.Builder(
                         getContentResolver(),
-                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI, // Use MediaStore for saving
+                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                         contentValues)
                         .build();
 
@@ -259,83 +212,70 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void extractColorFromCenter() {
-        // Use post to ensure the view is laid out and bitmap is available
         previewView.post(() -> {
             Bitmap bitmap = previewView.getBitmap();
-            if (bitmap != null && !bitmap.isRecycled()) { // Check if bitmap is valid
-                // Calculate center based on bitmap dimensions (more reliable)
+
+            if (bitmap != null && !bitmap.isRecycled()) {
+                int sampleSize = 5;
                 int centerX = bitmap.getWidth() / 2;
                 int centerY = bitmap.getHeight() / 2;
 
-                // Ensure coordinates are within bitmap bounds
-                if (centerX >= 0 && centerX < bitmap.getWidth() && centerY >= 0 && centerY < bitmap.getHeight()) {
-                    try {
-                        int pixel = bitmap.getPixel(centerX, centerY); // Get pixel from the exact center
+                int redSum = 0, greenSum = 0, blueSum = 0, sampleCount = 0;
 
-                        int red = Color.red(pixel);
-                        int green = Color.green(pixel);
-                        int blue = Color.blue(pixel);
-                        String hexColor = String.format("#%02X%02X%02X", red, green, blue);
-
-                        // Update only if color changes to avoid unnecessary UI updates and JS calls
-                        if (!hexColor.equals(lastHexColor)) {
-                            // Update the border color of the center overlay
-                            if (centerOverlay != null) {
-                                GradientDrawable border = new GradientDrawable();
-                                border.setShape(GradientDrawable.RECTANGLE); // Define shape
-                                border.setStroke(6, pixel); // Stroke width and color
-                                border.setColor(Color.TRANSPARENT); // Make the inside transparent
-                                centerOverlay.setBackground(border);
+                for (int x = centerX - sampleSize / 2; x <= centerX + sampleSize / 2; x++) {
+                    for (int y = centerY - sampleSize / 2; y <= centerY + sampleSize / 2; y++) {
+                        if (x >= 0 && x < bitmap.getWidth() && y >= 0 && y < bitmap.getHeight()) {
+                            try {
+                                int pixel = bitmap.getPixel(x, y);
+                                redSum += Color.red(pixel);
+                                greenSum += Color.green(pixel);
+                                blueSum += Color.blue(pixel);
+                                sampleCount++;
+                            } catch (Exception e) {
+                                Log.e("ColorExtraction", "Error accessing pixel: ", e);
                             }
-
-                            // Call JavaScript to get the color name and update TextView
-                            // Ensure the WebView is loaded before calling evaluateJavascript
-                            chromaWebView.evaluateJavascript("javascript:getColorName('" + hexColor + "')", colorNameJson -> {
-                                // The result from JS might be JSON string (e.g., "\"Lime\""), remove quotes if necessary
-                                String colorName = colorNameJson.replace("\"", "");
-                                if (colorName.equals("null") || colorName.isEmpty()) {
-                                    colorName = "Unknown"; // Handle cases where JS returns null or empty
-                                }
-                                String colorText = colorName + " (" + hexColor + ")";
-                                colorInfoTextView.setText(colorText);
-                                colorInfoTextView.setTextColor(pixel); // Set text color to the detected color
-                            });
-
-                            lastHexColor = hexColor; // Update the last detected color
                         }
-                    } catch (IllegalArgumentException e) {
-                        Log.e("ColorExtraction", "Invalid coordinates for getPixel: " + centerX + "," + centerY + " in bitmap " + bitmap.getWidth() + "x" + bitmap.getHeight());
-                    } catch (IllegalStateException e) {
-                        Log.e("ColorExtraction", "Could not get pixel, bitmap might be recycled.", e);
                     }
-
-                } else {
-                    Log.w("ColorExtraction", "Calculated center (" + centerX + "," + centerY + ") is outside bitmap bounds (" + bitmap.getWidth() + "x" + bitmap.getHeight() + ")");
                 }
 
-                // Note: It's generally not recommended to recycle the bitmap obtained from PreviewView#getBitmap()
-                // as the PreviewView manages its lifecycle. Let CameraX handle it.
-                // if (bitmap != null && !bitmap.isRecycled()) {
-                //     bitmap.recycle(); // Avoid this unless you are sure you manage the bitmap copy
-                // }
+                if (sampleCount > 0) {
+                    int red = redSum / sampleCount;
+                    int green = greenSum / sampleCount;
+                    int blue = blueSum / sampleCount;
+                    String hexColor = String.format("#%02X%02X%02X", red, green, blue);
 
-            } else {
-                // Log.v("ColorExtraction", "Bitmap from PreviewView is null or recycled."); // Verbose logging if needed
+                    if (!hexColor.equals(lastHexColor)) {
+                        if (centerOverlay != null) {
+                            GradientDrawable border = new GradientDrawable();
+                            border.setShape(GradientDrawable.RECTANGLE);
+                            border.setStroke(6, Color.rgb(red, green, blue));
+                            border.setColor(Color.TRANSPARENT);
+                            centerOverlay.setBackground(border);
+                        }
+
+                        // Cập nhật ô màu sắc
+                        colorDisplayView.setBackgroundColor(Color.rgb(red, green, blue));
+
+                        chromaWebView.evaluateJavascript("javascript:getColorName('" + hexColor + "')", colorNameJson -> {
+                            String colorName = colorNameJson.replace("\"", "");
+                            if (colorName.equals("null") || colorName.isEmpty() || colorName.startsWith("Unknown")) {
+                                colorName = "Unknown (" + hexColor + ")";
+                            }
+                            colorInfoTextView.setText(colorName);
+                            colorInfoTextView.setTextColor(Color.BLACK);
+                        });
+
+                        lastHexColor = hexColor;
+                    }
+                }
             }
         });
     }
 
-
-    // JavaScriptInterface remains the same
     public class JavaScriptInterface {
         @JavascriptInterface
         public void setColorName(String colorName) {
-            // This method might not be strictly needed if the result is handled
-            // directly in the evaluateJavascript callback, but can be kept for flexibility.
-            runOnUiThread(() -> {
-                // Example: Log the name received from JS if needed for debugging
-                // Log.d("JSInterface", "Received color name: " + colorName);
-            });
+            runOnUiThread(() -> Log.d("JSInterface", "Received color name: " + colorName));
         }
     }
 
@@ -344,10 +284,9 @@ public class MainActivity extends AppCompatActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_CAMERA_PERMISSION) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startCamera(); // Permission granted, start camera
+                startCamera();
             } else {
                 Toast.makeText(this, "Camera permission is required to use this app.", Toast.LENGTH_LONG).show();
-                // Optionally, disable camera-related features or close the app
             }
         }
     }
