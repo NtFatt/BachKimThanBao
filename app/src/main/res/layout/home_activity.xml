@@ -8,22 +8,53 @@
     android:layout_height="match_parent"
     tools:context=".HomeActivity">
 
-    <!-- Tiêu đề của màn hình Home -->
-    <TextView
-        android:id="@+id/tv_title_home"
+    <!-- Thanh top view được bọc trong CardView để có góc bo tròn và đổ bóng -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/card_top_view"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="Bạch Kim Thần Bảo"
-        android:textSize="20sp"
-        android:textColor="@android:color/white"
-        android:gravity="center"
-        android:padding="16dp"
-        android:background="?android:attr/colorPrimary"
+        android:layout_marginTop="16dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="8dp"
+        app:cardBackgroundColor="?android:attr/colorPrimary"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent">
 
-    <!-- GridLayout chứa 6 CardView -->
+        <!-- Sử dụng RelativeLayout để bố trí tiêu đề bên trái và avatar bên phải -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="16dp">
+
+            <!-- Tiêu đề ứng dụng -->
+            <TextView
+                android:id="@+id/tv_title_home"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Bạch Kim Thần Bảo"
+                android:textSize="20sp"
+                android:textColor="@android:color/white"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true" />
+
+            <!-- Avatar người dùng đặt bên phải -->
+            <ImageView
+                android:id="@+id/iv_user_avatar"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:src="@drawable/ic_user_icon"
+                android:scaleType="centerCrop"
+                android:background="@drawable/circle_background"
+                android:padding="4dp" />
+        </RelativeLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- GridLayout chứa 6 CardView, nằm bên dưới thanh top view -->
     <GridLayout
         android:id="@+id/grid_home"
         android:layout_width="0dp"
@@ -33,7 +64,7 @@
         android:rowCount="3"
         android:alignmentMode="alignMargins"
         android:useDefaultMargins="true"
-        app:layout_constraintTop_toBottomOf="@id/tv_title_home"
+        app:layout_constraintTop_toBottomOf="@id/card_top_view"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
@@ -53,7 +84,6 @@
                 android:orientation="vertical"
                 android:gravity="center"
                 android:padding="16dp">
-                <!-- Sử dụng icon của bạn -->
                 <ImageView
                     android:id="@+id/iv_icon_capture"
                     android:layout_width="64dp"

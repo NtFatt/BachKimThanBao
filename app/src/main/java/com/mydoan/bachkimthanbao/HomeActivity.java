@@ -2,10 +2,12 @@ package com.mydoan.bachkimthanbao;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.cardview.widget.CardView;
-
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.MotionEvent;
+import android.view.View;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 public class HomeActivity extends AppCompatActivity {
@@ -25,6 +27,14 @@ public class HomeActivity extends AppCompatActivity {
         cardSavedColors = findViewById(R.id.card_saved_colors);
         cardShare = findViewById(R.id.card_share);
         cardSubscription = findViewById(R.id.card_subscription);
+
+        // Áp dụng hiệu ứng hover cho các CardView
+        applyHoverAnimation(cardCapture);
+        applyHoverAnimation(cardPalette);
+        applyHoverAnimation(cardGallery);
+        applyHoverAnimation(cardSavedColors);
+        applyHoverAnimation(cardShare);
+        applyHoverAnimation(cardSubscription);
 
         // Card Capture: Mở MainActivity (Camera)
         cardCapture.setOnClickListener(v -> {
@@ -62,6 +72,31 @@ public class HomeActivity extends AppCompatActivity {
         cardSubscription.setOnClickListener(v -> {
             Toast.makeText(this, "Chức năng Subscription đang được phát triển.", Toast.LENGTH_SHORT).show();
         });
+
+        // Tìm ImageView avatar người dùng và xử lý sự kiện click
+        ImageView ivUserAvatar = findViewById(R.id.iv_user_avatar);
+        ivUserAvatar.setOnClickListener(v -> {
+            Intent intent = new Intent(HomeActivity.this, LoginActivity.class);
+            startActivity(intent);
+        });
+    }
+
+    // Phương thức tiện ích để áp dụng hiệu ứng hover cho view
+    private void applyHoverAnimation(View view) {
+        view.setOnHoverListener(new View.OnHoverListener() {
+            @Override
+            public boolean onHover(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_HOVER_ENTER:
+                        v.animate().scaleX(1.05f).scaleY(1.05f).setDuration(150).start();
+                        break;
+                    case MotionEvent.ACTION_HOVER_EXIT:
+                        v.animate().scaleX(1f).scaleY(1f).setDuration(150).start();
+                        break;
+                }
+                return false;
+            }
+        });
     }
 
     // Xử lý kết quả chọn ảnh từ Gallery
@@ -72,7 +107,6 @@ public class HomeActivity extends AppCompatActivity {
             if (resultCode == RESULT_OK && data != null) {
                 Uri imageUri = data.getData();
                 if (imageUri != null) {
-                    // Chuyển sang GalleryActivity, truyền URI của ảnh
                     Intent intent = new Intent(this, GalleryActivity.class);
                     intent.setData(imageUri);
                     startActivity(intent);

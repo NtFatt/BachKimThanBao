@@ -13,4 +13,18 @@
     <string name="error_image_not_found">Lỗi: Không tìm thấy ảnh.</string>
     <string name="error_camera_unavailable">Lỗi: Máy ảnh không khả dụng.</string>
     <string name="back_to_home">Trở về trang chủ</string>
+    <!-- Gender options array -->
+    <string-array name="gender_options">
+        <item>Nam</item>
+        <item>Nữ</item>
+        <item>Khác</item>
+    </string-array>
+    <string name="user_avatar_content_description">User Avatar</string>
+    <string name="user_name">Tên người dùng</string>
+    <string name="email">Email: user@example.com</string>
+    <string name="dob">Ngày sinh: 01/01/2000</string>
+    <string name="gender">Giới tính: Nam</string>
+    <string name="password">Mật khẩu: *****</string>
+    <string name="update_profile">Cập nhật thông tin</string>
+    <string name="logout">Đăng xuất</string>
 </resources>

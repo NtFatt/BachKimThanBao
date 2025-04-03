@@ -5,8 +5,10 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context=".GalleryActivity"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:background="#FDE6E4">
 
+    <!-- Image view for selected image -->
     <ImageView
         android:id="@+id/iv_gallery"
         android:layout_width="0dp"
@@ -17,54 +19,76 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toTopOf="@id/layout_color_info"
         android:layout_marginBottom="8dp"
-        android:scaleType="fitCenter" /> <LinearLayout
-    android:id="@+id/layout_color_info"
-    android:layout_width="0dp"
-    android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:gravity="center_vertical"
-    app:layout_constraintBottom_toTopOf="@id/btn_choose_image"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintEnd_toEndOf="parent"
-    android:layout_marginBottom="8dp"
-    android:paddingVertical="8dp">
+        android:scaleType="fitCenter"
+        android:background="#FFFFFF" />
 
-    <TextView
-        android:id="@+id/tv_gallery_color_info"
+    <!-- Layout for displaying color information -->
+    <LinearLayout
+        android:id="@+id/layout_color_info"
         android:layout_width="0dp"
-        android:layout_weight="1"
         android:layout_height="wrap_content"
-        android:text="Chạm vào ảnh để chọn màu"
-        android:textSize="16sp"
-        android:layout_marginEnd="8dp"/>
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        app:layout_constraintBottom_toTopOf="@id/btn_choose_image"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginBottom="8dp"
+        android:paddingVertical="8dp"
+        android:background="#F7A8B8"
+        android:padding="12dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:elevation="4dp"
+        android:clipToPadding="false">
 
-    <View
-        android:id="@+id/gallery_color_display_view"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:background="@android:color/transparent" /> </LinearLayout>
+        <TextView
+            android:id="@+id/tv_gallery_color_info"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="Chạm vào ảnh để chọn màu"
+            android:textSize="16sp"
+            android:textColor="#D6006C"
+            android:layout_marginEnd="8dp"/>
 
+        <View
+            android:id="@+id/gallery_color_display_view"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@android:color/black"
+            android:elevation="4dp" />
+    </LinearLayout>
+
+    <!-- Button for choosing an image -->
     <Button
         android:id="@+id/btn_choose_image"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Chọn ảnh"
+        android:textColor="#FFFFFF"
+        android:background="@drawable/rounded_button"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toStartOf="@id/btn_refresh"
         app:layout_constraintHorizontal_chainStyle="spread_inside"
-        android:layout_marginBottom="8dp"/>
+        android:layout_marginBottom="8dp"
+        android:padding="12dp"/>
 
+    <!-- Button for refreshing image -->
     <Button
         android:id="@+id/btn_refresh"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Làm mới ảnh"
+        android:textColor="#FFFFFF"
+        android:background="@drawable/rounded_button"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@id/btn_choose_image"
-        android:layout_marginBottom="8dp"/>
+        android:layout_marginBottom="8dp"
+        android:padding="12dp"/>
 
+    <!-- Progress bar for loading -->
     <ProgressBar
         android:id="@+id/progress_bar"
         android:layout_width="wrap_content"
@@ -75,6 +99,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
+    <!-- WebView for displaying content -->
     <WebView
         android:id="@+id/chroma_webview"
         android:layout_width="0dp"
@@ -84,5 +109,4 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
-
 </androidx.constraintlayout.widget.ConstraintLayout>

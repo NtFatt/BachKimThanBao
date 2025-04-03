@@ -10,6 +10,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.webkit.JavascriptInterface;
@@ -71,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
         colorInfoTextView = findViewById(R.id.tv_color_info);
         chromaWebView = findViewById(R.id.chroma_webview);
         centerOverlay = findViewById(R.id.center_overlay);
-        colorDisplayView = findViewById(R.id.color_display_view); // Lấy tham chiếu đến ô màu sắc
+        colorDisplayView = findViewById(R.id.color_display_view);
 
         // Yêu cầu cấp quyền camera nếu chưa được cấp
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -88,6 +89,24 @@ public class MainActivity extends AppCompatActivity {
 
         captureButton.setOnClickListener(v -> capturePhoto());
 
+        // Thêm hiệu ứng hover cho nút capture
+        captureButton.setOnHoverListener(new View.OnHoverListener() {
+            @Override
+            public boolean onHover(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_HOVER_ENTER:
+                        // Hiệu ứng phóng to nhẹ khi hover
+                        v.animate().scaleX(1.1f).scaleY(1.1f).setDuration(150).start();
+                        break;
+                    case MotionEvent.ACTION_HOVER_EXIT:
+                        // Trở lại kích thước ban đầu khi hover thoát
+                        v.animate().scaleX(1f).scaleY(1f).setDuration(150).start();
+                        break;
+                }
+                return false;
+            }
+        });
+
         colorDetectionRunnable = new Runnable() {
             @Override
             public void run() {
@@ -97,7 +116,6 @@ public class MainActivity extends AppCompatActivity {
         };
 
         setupPinchToZoom();
-
     }
 
     @Override

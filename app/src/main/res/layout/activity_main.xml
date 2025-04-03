@@ -6,15 +6,13 @@
     android:id="@+id/main_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#FFE4E1"
     tools:context=".MainActivity">
 
-    <!-- Top Bar với nút back và tiêu đề -->
     <LinearLayout
         android:id="@+id/top_bar"
         android:layout_width="0dp"
         android:layout_height="?attr/actionBarSize"
-        android:background="?android:attr/colorPrimary"
+        android:background="#FF80BF"
         android:orientation="horizontal"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
@@ -34,7 +32,6 @@
             app:srcCompat="@drawable/ic_arrow_back"
             app:tint="@android:color/white"/>
 
-        <!-- Tiêu đề -->
         <TextView
             android:id="@+id/tv_title"
             android:layout_width="0dp"
@@ -50,7 +47,6 @@
 
     </LinearLayout>
 
-    <!-- Khung camera được tối ưu -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/camera_frame"
         android:layout_width="0dp"
@@ -71,12 +67,11 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"/>
 
-        <!-- Overlay được thiết kế lại -->
         <ImageView
             android:id="@+id/center_overlay"
             android:layout_width="42dp"
             android:layout_height="38dp"
-            android:elevation="10dp"
+            android:elevation="12dp"
             android:src="@drawable/circle_overlay"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -96,7 +91,6 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Bottom Panel được thiết kế lại -->
     <LinearLayout
         android:id="@+id/layout_bottom"
         android:layout_width="0dp"
@@ -138,12 +132,12 @@
             android:layout_width="match_parent"
             android:layout_height="56dp"
             android:layout_marginTop="16dp"
-            android:backgroundTint="#FFB6C1"
+            android:backgroundTint="#FF80BF"
             android:text="CHỤP ẢNH"
             android:textAllCaps="false"
             android:textColor="@android:color/white"
             android:textSize="16sp"
-            android:elevation="4dp"
+            android:elevation="6dp"
             style="@style/Widget.AppCompat.Button.Colored"/>
 
     </LinearLayout>
