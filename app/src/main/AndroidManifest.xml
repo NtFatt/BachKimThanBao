@@ -67,6 +67,9 @@
             android:name=".EditProfileActivity"
             android:exported="true" />
 
+        <activity
+            android:name=".PaletteActivity"
+            android:exported="true" />
     </application>
 
 </manifest>

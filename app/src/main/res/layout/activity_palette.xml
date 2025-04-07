@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:id="@+id/activity_palette"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <!-- View hiển thị màu -->
+        <View
+            android:id="@+id/colorView"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:layout_marginBottom="16dp"
+            android:background="#000000" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:id="@+id/textR"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="R: 0"
+                android:textSize="18sp"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/btnMinusR"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="-" />
+
+            <SeekBar
+                android:id="@+id/seekRed"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="5"
+                android:max="255" />
+
+            <Button
+                android:id="@+id/btnPlusR"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="+" />
+        </LinearLayout>
+
+        <!-- G -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:id="@+id/textG"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="G: 0"
+                android:textSize="18sp"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/btnMinusG"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="-" />
+
+            <SeekBar
+                android:id="@+id/seekGreen"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="5"
+                android:max="255" />
+
+            <Button
+                android:id="@+id/btnPlusG"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="+" />
+        </LinearLayout>
+
+        <!-- B -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/textB"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="B: 0"
+                android:textSize="18sp"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/btnMinusB"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="-" />
+
+            <SeekBar
+                android:id="@+id/seekBlue"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="5"
+                android:max="255" />
+
+            <Button
+                android:id="@+id/btnPlusB"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="+" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

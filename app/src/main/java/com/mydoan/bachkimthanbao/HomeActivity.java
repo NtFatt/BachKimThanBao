@@ -42,10 +42,12 @@ public class HomeActivity extends AppCompatActivity {
             startActivity(intent);
         });
 
-        // Card Palette: (Chưa cập nhật)
+        // Card Palette: Mở PaletteActivity
         cardPalette.setOnClickListener(v -> {
-            Toast.makeText(this, "Chức năng Palette đang được phát triển.", Toast.LENGTH_SHORT).show();
+            Intent intent = new Intent(this, PaletteActivity.class);
+            startActivity(intent);
         });
+
 
         // Card Gallery: Mở Image Picker
         cardGallery.setOnClickListener(v -> {
